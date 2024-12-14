@@ -1,62 +1,85 @@
-import sys
-import signal
-import datetime
-import logging
-import traceback
-import yaml
 import requests
+import logging
+import yaml
 
-def kill_signal_handler(signal, frame):
-    print("\nExecution interrupted.")
-    sys.exit(0)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
 
-signal.signal(signal.SIGINT, kill_signal_handler)
+class BreachDetector:
+    def __init__(self, target_url, payloads):
+        self.target_url = target_url
+        self.payloads = payloads
 
-class Breach:
-    def __init__(self, args):
-        self.args = args
-        self.setup_logger()
-        self.logger = logging.getLogger('debug_logger')
-
-    def setup_logger(self):
-        level = logging.DEBUG if self.args.get('verbose', 0) > 1 else logging.INFO
-        logging.basicConfig(filename=self.args.get('log_file', 'debug.log'),
-                            level=level,
-                            format='%(asctime)s - %(levelname)s - %(message)s')
-
-    def send_request(self, payload):
-        url = self.args['url']
-        headers = {'Content-Type': 'application/json'}
+    def test_breach_vulnerability(self):
+        """
+        Test if the server uses vulnerable compression methods.
+        """
         try:
-            response = requests.post(url, headers=headers, data=payload)
-            return response
+            response = requests.get(self.target_url)
+            encoding = response.headers.get('Content-Encoding', '')
+            if encoding in ['gzip', 'deflate']:
+                logger.warning(f"[VULNERABLE] The server uses {encoding} compression. This may indicate BREACH vulnerability.")
+            else:
+                logger.info(f"[SAFE] The server does not use compression methods vulnerable to BREACH.")
         except Exception as e:
-            self.logger.error(f"Error sending request: {e}")
-            return None
+            logger.error(f"Error during request: {e}")
 
-    def execute_attack(self):
-        self.logger.info("Starting BREACH attack simulation.")
-        payloads = ["A" * i for i in range(10, 50)]  # Example payloads
-        for payload in payloads:
-            response = self.send_request(payload)
-            if response and response.ok:
-                self.logger.debug(f"Payload: {payload} | Response Length: {len(response.content)}")
-        self.logger.info("Attack simulation complete.")
+    def analyze_payloads(self):
+        """
+        Analyze response sizes based on different payloads to detect potential vulnerability.
+        """
+        previous_response_size = None
+        try:
+            for payload in self.payloads:
+                response = requests.post(self.target_url, data={"input": payload})
+                current_response_size = len(response.content)
+                logger.info(f"Payload: {payload} | Response Size: {current_response_size} bytes")
+                if previous_response_size and current_response_size != previous_response_size:
+                    logger.warning(f"Response size changed for payload {payload}. This may indicate vulnerability to BREACH.")
+                
+                previous_response_size = current_response_size
+        except Exception as e:
+            logger.error(f"Error during payload analysis: {e}")
 
-if __name__ == '__main__':
+    def save_results_to_file(self, results, filename="results.log"):
+        """
+        Save test results to a log file.
+        """
+        try:
+            with open(filename, "w") as file:
+                file.write(results)
+            logger.info(f"Results saved to {filename}")
+        except Exception as e:
+            logger.error(f"Error saving results to file: {e}")
+
+def load_config(config_file="config.yml"):
+    """
+    Load configuration from a YAML file.
+    """
     try:
-        with open('config.yml', 'r') as ymlconf:
-            cfg = yaml.safe_load(ymlconf)
-
-        args = cfg['execution']
-        args.update(cfg['endpoint'])
-        args.update(cfg['local'])
-        args.update(cfg['logging'])
-        args['start_time'] = datetime.datetime.now()
-
-        breach = Breach(args)
-        breach.execute_attack()
-
+        with open(config_file, "r") as file:
+            config = yaml.safe_load(file)
+        return config
     except Exception as e:
-        print("An error occurred:", e)
-        traceback.print_exc()
+        logger.error(f"Error loading configuration file: {e}")
+        return None
+
+if __name__ == "__main__":
+    config = load_config("config.yml")
+    if config is None:
+        logger.error("Failed to load configuration.")
+        exit(1)
+
+    target_url = config.get('target_url', '')
+    payloads = config.get('payloads', [])
+
+    if not target_url or not payloads:
+        logger.error("Target URL or payloads are missing in the configuration.")
+        exit(1)
+
+    logger.info("Starting BREACH vulnerability detection...")
+    breach_detector = BreachDetector(target_url, payloads)
+    breach_detector.test_breach_vulnerability()
+    breach_detector.analyze_payloads()
+
+    logger.info("BREACH vulnerability detection completed.")
