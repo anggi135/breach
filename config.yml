@@ -1,0 +1,11 @@
+execution:
+  retries: 3
+  timeout: 10
+endpoint:
+  url: "https://target-site.com"
+  compression: "gzip"
+local:
+  threads: 4
+logging:
+  verbose: 2
+  log_file: "attack.log"
