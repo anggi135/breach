@@ -1,11 +1,28 @@
-execution:
-  retries: 3
-  timeout: 10
-endpoint:
-  url: "https://target-site.com"
-  compression: "gzip"
-local:
-  threads: 4
-logging:
-  verbose: 2
-  log_file: "attack.log"
+target_url: "https://target.com"  # Ganti dengan URL server target
+
+payloads:
+  - "AAAA"
+  - "BBBB"
+  - "CCCC"
+  - "1234"
+  - "5678"
+  - "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"
